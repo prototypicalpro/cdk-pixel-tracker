@@ -5,6 +5,10 @@ import * as iam from '@aws-cdk/aws-iam'
 import * as logs from '@aws-cdk/aws-logs'
 import * as firehose from '@aws-cdk/aws-kinesisfirehose'
 
+function getTypeOverride (type: string): string {
+  return `#set($context.responseOverride.header.Content-Type = "${type}")`
+}
+
 export class PixelTrackerStack extends cdk.Stack {
   constructor (scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props)
@@ -86,6 +90,7 @@ export class PixelTrackerStack extends cdk.Stack {
    }
 }`.replace(/^(?: |\t)+|\n|\r\n/mg, '')
 
+    const defaultImage = getTypeOverride('image/gif') + '$util.base64Decode("R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAAAICTAEAOw==")'
     // configure the API integration to send to the firehose
     const integration = new apigateway.AwsIntegration({
       service: 'firehose',
@@ -94,7 +99,15 @@ export class PixelTrackerStack extends cdk.Stack {
       options: {
         integrationResponses: [{
           statusCode: '200',
-          responseTemplates: { 'application/json': '{"status":"OK"}' }
+          responseTemplates: {
+            'application/json': '{"status":"OK"}',
+            'image/svg+xml': getTypeOverride('image/svg+xml') + '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
+            'image/png': getTypeOverride('image/png') + '$util.base64Decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")',
+            'image/jpeg': getTypeOverride('image/jpeg') + '$util.base64Decode("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/2wBDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAARCAABAAEDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACv/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AfwD/2Q==")',
+            'image/gif': defaultImage,
+            'image/webp': defaultImage,
+            'image/*': defaultImage
+          }
         }],
         credentialsRole: apiPolicy,
         requestTemplates: {
