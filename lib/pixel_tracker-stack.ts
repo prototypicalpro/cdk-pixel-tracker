@@ -2,8 +2,10 @@ import * as cdk from '@aws-cdk/core'
 import * as apigateway from '@aws-cdk/aws-apigateway'
 import * as s3 from '@aws-cdk/aws-s3'
 import * as iam from '@aws-cdk/aws-iam'
-import * as logs from '@aws-cdk/aws-logs'
 import * as firehose from '@aws-cdk/aws-kinesisfirehose'
+import * as certmanager from '@aws-cdk/aws-certificatemanager'
+import * as route53 from '@aws-cdk/aws-route53'
+import * as route53Targets from '@aws-cdk/aws-route53-targets'
 
 function getTypeOverride (type: string): string {
   return `#set($context.responseOverride.header.Content-Type = "${type}")`
@@ -13,12 +15,6 @@ export class PixelTrackerStack extends cdk.Stack {
   constructor (scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props)
 
-    // create firehose log group
-    const fireLogs = new logs.LogGroup(this, 'fire-logs', {
-      retention: logs.RetentionDays.ONE_DAY,
-      removalPolicy: cdk.RemovalPolicy.DESTROY
-    })
-
     // create an S3 bucket for the firehose
     const dataBucket = new s3.Bucket(this, 'datalogs', { removalPolicy: cdk.RemovalPolicy.DESTROY })
 
@@ -27,7 +23,6 @@ export class PixelTrackerStack extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal('firehose.amazonaws.com')
     })
     dataBucket.grantReadWrite(dataPolicy)
-    fireLogs.grantWrite(dataPolicy)
 
     // create a kinesis firehose wired to the destination bucket
     const firehoseName = id + '-datahose'
@@ -37,12 +32,7 @@ export class PixelTrackerStack extends cdk.Stack {
       s3DestinationConfiguration: {
         bucketArn: dataBucket.bucketArn,
         roleArn: dataPolicy.roleArn,
-        compressionFormat: 'GZIP',
-        cloudWatchLoggingOptions: {
-          enabled: true,
-          logGroupName: fireLogs.logGroupName,
-          logStreamName: 'firehoselogs'
-        }
+        compressionFormat: 'GZIP'
       }
     })
 
@@ -90,7 +80,7 @@ export class PixelTrackerStack extends cdk.Stack {
    }
 }`.replace(/^(?: |\t)+|\n|\r\n/mg, '')
 
-    const defaultImage = getTypeOverride('image/gif') + '$util.base64Decode("R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAAAICTAEAOw==")'
+    const svgImage = getTypeOverride('image/svg+xml') + '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'
     // configure the API integration to send to the firehose
     const integration = new apigateway.AwsIntegration({
       service: 'firehose',
@@ -100,13 +90,7 @@ export class PixelTrackerStack extends cdk.Stack {
         integrationResponses: [{
           statusCode: '200',
           responseTemplates: {
-            'application/json': '{"status":"OK"}',
-            'image/svg+xml': getTypeOverride('image/svg+xml') + '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
-            'image/png': getTypeOverride('image/png') + '$util.base64Decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")',
-            'image/jpeg': getTypeOverride('image/jpeg') + '$util.base64Decode("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/2wBDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAARCAABAAEDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACv/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AfwD/2Q==")',
-            'image/gif': defaultImage,
-            'image/webp': defaultImage,
-            'image/*': defaultImage
+            'image/svg+xml': svgImage
           }
         }],
         credentialsRole: apiPolicy,
@@ -126,9 +110,28 @@ export class PixelTrackerStack extends cdk.Stack {
       deployOptions: {
         loggingLevel: apigateway.MethodLoggingLevel.INFO,
         variables: { firehoseName }
+      },
+      domainName: {
+        certificate: certmanager.Certificate.fromCertificateArn(this, 'global-cert', this.node.tryGetContext('cert-arn')),
+        domainName: 'track.prototypical.pro',
+        endpointType: apigateway.EndpointType.REGIONAL,
+        securityPolicy: apigateway.SecurityPolicy.TLS_1_2
       }
     })
 
     api.root.addMethod('GET', integration, { methodResponses: [{ statusCode: '200' }] })
+
+    // add records to route53
+    const zone = route53.HostedZone.fromHostedZoneId(this, 'prototypicalprozone', this.node.tryGetContext('zone-id'))
+    const record = new route53.ARecord(this, 'ATrackRecord', {
+      zone,
+      target: route53.RecordTarget.fromAlias(new route53Targets.ApiGateway(api)),
+      recordName: 'track.prototypical.pro.'
+    })
+    const v6record = new route53.AaaaRecord(this, 'AnotherTrackRecord', {
+      zone,
+      target: route53.RecordTarget.fromAlias(new route53Targets.ApiGateway(api)),
+      recordName: 'track.prototypical.pro.'
+    })
   }
 }

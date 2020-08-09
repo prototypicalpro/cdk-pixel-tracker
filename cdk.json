@@ -2,6 +2,8 @@
   "app": "npx ts-node bin/pixel_tracker.ts",
   "context": {
     "@aws-cdk/core:enableStackNameDuplicates": "true",
-    "aws-cdk:enableDiffNoFail": "true"
+    "aws-cdk:enableDiffNoFail": "true",
+    "cert-arn": "arn:aws:acm:us-west-2:891150181192:certificate/a3f28063-ed6a-4c19-a0a2-cb3f5ecc81f8",
+    "zone-id": "Z17ZSLO5PJH875"
   }
 }
