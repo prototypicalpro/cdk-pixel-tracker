@@ -106,9 +106,7 @@ export class PixelTrackerStack extends cdk.Stack {
 
     // create the API gateway
     const api = new apigateway.RestApi(this, 'pixel-tracker', {
-      cloudWatchRole: true,
       deployOptions: {
-        loggingLevel: apigateway.MethodLoggingLevel.INFO,
         variables: { firehoseName }
       },
       domainName: {
