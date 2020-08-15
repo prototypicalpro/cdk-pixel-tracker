@@ -1,16 +1,9 @@
-# Welcome to your CDK TypeScript project!
+# AWS CDK Pixel Tracker
 
-This is a blank project for TypeScript development with CDK.
+![Map of AWS Services in this project, from left to right: Browser, API Gateway, Kinesis Firehose, S3](readme/map.png)
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+This project is a simple implementation of a [pixel tracker](https://en.wikipedia.org/wiki/Web_beacon) using the [AWS CDK](https://aws.amazon.com/cdk/). This stack exports one API endpoint which returns a single-pixel transparent SVG when queried. All request metadata is then sent from the API gateway to Kinesis Firehose where it is collected and eventually cataloged in S3.
 
-## Useful commands
+This project is still a work in progress, and the README will be updated as the project progresses.
 
- * `npm run build`   compile typescript to js
- * `npm run watch`   watch for changes and compile
- * `npm run test`    perform the jest unit tests
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk synth`       emits the synthesized CloudFormation template
-
-![Pixel Tracker](https://track.prototypical.pro?source=github&repo=cdk-workspace&project=pixelTracker)
+![Pixel Tracker](https://track.prototypical.pro?source=github&repo=pixeltracker)
